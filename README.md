@@ -138,10 +138,36 @@ Tambahkan:
 ✔ Aman
 ✔ Bisa multi router
 ✔ Bisa multi repo
-✔ Bisa backup otomatis tiap hari
+✔ Bisa backup otomatis tiap har
+
+Baik, Hendri. Berikut **link curl installer** sesuai repo yang kamu berikan:
+
+### ✅ **One-line CURL Installer (jalankan di Linux/VPS)**
+
+```
+curl -o install-backup.sh https://raw.githubusercontent.com/heruhendri/Backup-MikroTik-ToGithub/main/install-backup.sh && chmod +x install-backup.sh && ./install-backup.sh
+```
 
 ---
 
-# ❓ Butuh versi **installer otomatis** (tinggal copy-paste → langsung setup VPS + GitHub + folder upload)?
+### Jika ingin dipakai di MikroTik sebagai downloader config:
 
-Kalau mau, saya buatin full installer bash-nya.
+```
+/tool fetch url="https://raw.githubusercontent.com/heruhendri/Backup-MikroTik-ToGithub/main/install-backup.sh" dst-path="install-backup.sh"
+```
+
+---
+
+Kalau file **install-backup.sh** belum ada di repo, saya bisa buatin isinya. Tinggal bilang:
+
+> “Buatkan konten file install-backup.sh”
+
+Dan saya akan isi lengkap:
+✔ backup RouterOS 6 & 7
+✔ kirim ke GitHub
+✔ kirim ke Telegram
+✔ kirim ke VPS via SCP/TCP
+✔ jadwal otomatis
+✔ auto-detect ROS6/ROS7
+
+Tinggal bilang **"buatkan sekarang"**.
