@@ -1,0 +1,125 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "=========================================="
+echo "     MIKROTIK BACKUP RECEIVER INSTALLER"
+echo "   Auto-push ke GitHub by Hendri (NATVPS)"
+echo "=========================================="
+echo ""
+
+read -p "Masukkan nama user Linux untuk menerima backup (misal: backup): " LUSER
+read -p "Masukkan URL repo GitHub: " REPO
+read -p "Masukkan nama branch (default: main): " BRANCH
+
+BRANCH=${BRANCH:-main}
+
+# Ambil IP VPS otomatis
+IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
+
+# Generate password random
+PASS=$(openssl rand -base64 12)
+
+echo ""
+echo "[✓] Membuat user $LUSER dan folder"
+
+if ! id "$LUSER" >/dev/null 2>&1; then
+    adduser --disabled-password --gecos "" "$LUSER"
+fi
+
+echo "$LUSER:$PASS" | chpasswd
+
+mkdir -p /home/$LUSER/mikrotik-upload
+mkdir -p /home/$LUSER/mikrotik-repo
+chown -R $LUSER:$LUSER /home/$LUSER
+
+echo ""
+echo "[✓] Instalasi FTP server (vsftpd)"
+apt update -y
+apt install -y vsftpd
+
+systemctl enable vsftpd
+systemctl restart vsftpd
+
+echo ""
+echo "[✓] Setup SFTP (aktif otomatis)"
+if ! grep -q "Match User $LUSER" /etc/ssh/sshd_config; then
+cat <<EOF >> /etc/ssh/sshd_config
+
+Match User $LUSER
+    ForceCommand internal-sftp
+    PasswordAuthentication yes
+    ChrootDirectory /home/$LUSER
+EOF
+fi
+
+systemctl restart ssh
+
+echo ""
+echo "[✓] Clone atau sync repository GitHub"
+
+cd /home/$LUSER
+
+if [ ! -d "/home/$LUSER/mikrotik-repo/.git" ]; then
+    sudo -u $LUSER git clone "$REPO" mikrotik-repo
+else
+    cd mikrotik-repo
+    sudo -u $LUSER git pull
+fi
+
+echo ""
+echo "[✓] Membuat script auto push GitHub"
+
+cat << 'EOF' > /home/temp_push.sh
+#!/bin/bash
+set -euo pipefail
+
+UPLOAD_DIR="/home/REPLACEUSER/mikrotik-upload"
+REPO_DIR="/home/REPLACEUSER/mikrotik-repo"
+
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+
+cd "$REPO_DIR"
+cp -r $UPLOAD_DIR/* . 2>/dev/null || true
+
+git add .
+git commit -m "Auto backup $DATE" || true
+git push origin REPLACEBRANCH || true
+EOF
+
+sed -i "s/REPLACEUSER/$LUSER/g" /home/temp_push.sh
+sed -i "s/REPLACEBRANCH/$BRANCH/g" /home/temp_push.sh
+
+mv /home/temp_push.sh /home/$LUSER/push-github.sh
+chmod +x /home/$LUSER/push-github.sh
+chown $LUSER:$LUSER /home/$LUSER/push-github.sh
+
+echo ""
+echo "[✓] Menambahkan cronjob"
+(crontab -u $LUSER -l 2>/dev/null; echo "* * * * * /home/$LUSER/push-github.sh >/dev/null 2>&1") | crontab -u $LUSER -
+
+echo ""
+echo "=========================================="
+echo " INSTALL BERHASIL!"
+echo ""
+echo " Folder upload MikroTik  : /home/$LUSER/mikrotik-upload"
+echo " Folder repo GitHub      : /home/$LUSER/mikrotik-repo"
+echo ""
+echo "=== DETAIL LOGIN ==="
+echo "User      : $LUSER"
+echo "Password  : $PASS"
+echo "IP VPS    : $IP"
+echo "Port SFTP : 22"
+echo ""
+
+echo "=== SCRIPT MIKROTIK (langsung paste) ==="
+echo ""
+echo "/system backup save name=auto"
+echo "/export file=auto"
+echo ""
+echo "/tool fetch address=\"$IP\" port=\"22\" user=\"$LUSER\" password=\"$PASS\" mode=scp upload=yes \\"
+echo "    src-path=\"auto.backup\" dst-path=\"/mikrotik-upload/auto.backup\""
+echo ""
+echo "/tool fetch address=\"$IP\" port=\"22\" user=\"$LUSER\" password=\"$PASS\" mode=scp upload=yes \\"
+echo "    src-path=\"auto.rsc\" dst-path=\"/mikrotik-upload/auto.rsc\""
+echo ""
+echo "=========================================="
